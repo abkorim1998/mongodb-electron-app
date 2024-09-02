@@ -4,5 +4,5 @@
 
 * install all dependencis `npm run install`
 * start dev server run `npm run dev` 
-* to build run `npm run build:local`
+* to build the application `npm run build:local`
 
