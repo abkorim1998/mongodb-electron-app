@@ -9,7 +9,11 @@ let mongoProcess: ChildProcess | null;
 
 export function startMongoDB() {
     const platform = process.platform; // 'win32', 'darwin', 'linux'
-    const mongoPath = path.join(__dirname, '..', 'mongodb', platform, 'mongod.exe');
+    
+    // Adjust the path to include 'bin' only for macOS
+    const mongoPath = platform === 'darwin'
+        ? path.join(__dirname, '..', 'mongodb', platform, 'bin', 'mongod')
+        : path.join(__dirname, '..', 'mongodb', platform, 'mongod.exe');
 
     const dbPath = path.join(app.getPath('userData'), 'mongodb-data');
     if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
