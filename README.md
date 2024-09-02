@@ -1,4 +1,4 @@
-# electron with integrated mongodb database
+# Electron + Integrated Mongodb Database
 
 - Need [node.js](https://nodejs.org/en) latest version install it's requird
 
