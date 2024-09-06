@@ -9,14 +9,16 @@
   },
   "files": [
     "dist",
-    "dist-electron",
-    "mongodb"  // Exclude 'mongodb' from being packed into the asar
+    "dist-electron"
   ],
   "mac": {
     "target": [
       "dmg"
     ],
-    "artifactName": "${productName}-Mac-${version}-Installer.${ext}"
+    "artifactName": "${productName}-Mac-${version}-Installer.${ext}",
+    "files": [
+      "mongodb/darwin" // Include mac-specific binaries
+    ]
   },
   "win": {
     "target": [
@@ -27,7 +29,10 @@
         ]
       }
     ],
-    "artifactName": "${productName}-Windows-${version}-Setup.${ext}"
+    "artifactName": "${productName}-Windows-${version}-Setup.${ext}",
+    "files": [
+      "mongodb/win32" // Include win32-specific binaries
+    ]
   },
   "nsis": {
     "oneClick": false,

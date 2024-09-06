@@ -1,130 +1,175 @@
-import { app as a, ipcMain as m, BrowserWindow as g } from "electron";
-import { fileURLToPath as u } from "node:url";
-import i from "node:path";
-import { spawn as b } from "node:child_process";
-import f from "path";
-import d from "fs";
-import { MongoClient as E } from "mongodb";
-const P = f.dirname(u(import.meta.url));
-let s;
-function R() {
-  const e = process.platform, t = f.join(P, "..", "mongodb", e, "mongod.exe"), o = f.join(a.getPath("userData"), "mongodb-data");
-  d.existsSync(o) || d.mkdirSync(o, { recursive: !0 });
-  const n = f.join(o, "mongo.log");
-  d.existsSync(n) || d.writeFileSync(n, ""), s = b(t, [
+import { app, ipcMain, BrowserWindow } from "electron";
+import { fileURLToPath } from "node:url";
+import path$1 from "node:path";
+import { spawn } from "node:child_process";
+import path from "path";
+import fs from "fs";
+import { MongoClient } from "mongodb";
+const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
+let mongoProcess;
+function startMongoDB() {
+  const platform = process.platform;
+  const mongoPath = platform === "darwin" ? path.join(__dirname$1, "..", "mongodb", platform, "bin", "mongod") : path.join(__dirname$1, "..", "mongodb", platform, "mongod.exe");
+  const dbPath = path.join(app.getPath("userData"), "mongodb-data");
+  if (!fs.existsSync(dbPath)) fs.mkdirSync(dbPath, { recursive: true });
+  const logPath = path.join(dbPath, "mongo.log");
+  if (!fs.existsSync(logPath)) fs.writeFileSync(logPath, "");
+  mongoProcess = spawn(mongoPath, [
     "--dbpath",
-    o,
+    dbPath,
     "--logpath",
-    n,
+    logPath,
     "--bind_ip",
     "127.0.0.1",
     "--port",
     "27017"
   ], {
-    detached: !0,
+    detached: true,
     stdio: "ignore"
     // Ignore stdout and stderr
-  }), s.unref(), s.on("error", (l) => {
-    throw console.error(`MongoDB failed to start: ${l.message}`), l;
-  }), console.log("MongoDB started successfully");
+  });
+  mongoProcess.unref();
+  mongoProcess.on("error", (err) => {
+    console.error(`MongoDB failed to start: ${err.message}`);
+    throw err;
+  });
+  console.log("MongoDB started successfully");
 }
-function h() {
-  s && (console.log("Stopping MongoDB..."), s.kill("SIGINT"), s = null);
+function stopMongoDB() {
+  if (mongoProcess) {
+    console.log("Stopping MongoDB...");
+    mongoProcess.kill("SIGINT");
+    mongoProcess = null;
+  }
 }
-const v = "mongodb://127.0.0.1:27017", I = "abcd";
-let r = null;
-async function T() {
-  const e = new E(v);
-  await e.connect(), r = e.db(I), console.log("Connected to MongoDB");
+const mongoUri = "mongodb://127.0.0.1:27017";
+const dbName = "abcd";
+let db = null;
+async function connectToMongoDB() {
+  const client = new MongoClient(mongoUri);
+  await client.connect();
+  db = client.db(dbName);
+  console.log("Connected to MongoDB");
 }
-async function j(e) {
-  if (!r)
+async function fetchData(collectionName) {
+  if (!db) {
     throw new Error("Database not initialized");
-  return r.collection(e).find({}).toArray();
+  }
+  const collection = db.collection(collectionName);
+  return collection.find({}).toArray();
 }
-async function O(e, t) {
-  if (!r)
+async function insertData(collectionName, data) {
+  if (!db) {
     throw new Error("Database not initialized");
-  return r.collection(e).insertOne(t);
+  }
+  const collection = db.collection(collectionName);
+  return collection.insertOne(data);
 }
-async function w(e, t) {
-  if (!r)
+async function fetchDatabyId(collectionName, id) {
+  if (!db) {
     throw new Error("Database not initialized");
-  return r.collection(e).findOne({
-    _id: t
+  }
+  const collection = db.collection(collectionName);
+  return collection.findOne({
+    _id: id
   });
 }
-async function S(e, t) {
-  if (!r)
+async function deleteData(collectionName, data) {
+  if (!db) {
     throw new Error("Database not initialized");
-  return r.collection(e).deleteOne(t);
+  }
+  const collection = db.collection(collectionName);
+  return collection.deleteOne(data);
 }
-m.handle("fetch-data", async (e, t) => {
+ipcMain.handle("fetch-data", async (_event, collectionName) => {
   try {
-    return await j(t);
-  } catch (o) {
-    throw console.error("Error fetching data:", o), o;
+    const data = await fetchData(collectionName);
+    return data;
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    throw error;
   }
 });
-m.handle("insert-data", async (e, t, o) => {
+ipcMain.handle("insert-data", async (_event, collectionName, data) => {
   try {
-    const l = (await O(t, o)).insertedId;
-    return await w(t, l);
-  } catch (n) {
-    throw console.error("Error inserting data:", n), n;
+    const result = await insertData(collectionName, data);
+    const id = result.insertedId;
+    const resultData = await fetchDatabyId(collectionName, id);
+    return resultData;
+  } catch (error) {
+    console.error("Error inserting data:", error);
+    throw error;
   }
 });
-m.handle("fetch-databy-id", async (e, t, o) => {
+ipcMain.handle("fetch-databy-id", async (_event, collectionName, id) => {
   try {
-    return await w(t, o);
-  } catch (n) {
-    throw console.error("Error fetching data:", n), n;
+    const data = await fetchDatabyId(collectionName, id);
+    return data;
+  } catch (error) {
+    console.error("Error fetching data:", error);
+    throw error;
   }
 });
-m.handle("delete-data-by-id", async (e, t, o) => {
+ipcMain.handle("delete-data-by-id", async (_event, collectionName, data) => {
   try {
-    console.log(o);
-    const n = await S(t, o);
-    return console.log(n), n;
-  } catch (n) {
-    throw console.error("Error deleting data:", n), n;
+    console.log(data);
+    const result = await deleteData(collectionName, data);
+    console.log(result);
+    return result;
+  } catch (error) {
+    console.error("Error deleting data:", error);
+    throw error;
   }
 });
-const y = i.dirname(u(import.meta.url));
-process.env.APP_ROOT = i.join(y, "..");
-const p = process.env.VITE_DEV_SERVER_URL, q = i.join(process.env.APP_ROOT, "dist-electron"), D = i.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = p ? i.join(process.env.APP_ROOT, "public") : D;
-let c;
-function _() {
-  c = new g({
-    icon: i.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
+const __dirname = path$1.dirname(fileURLToPath(import.meta.url));
+process.env.APP_ROOT = path$1.join(__dirname, "..");
+const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+const MAIN_DIST = path$1.join(process.env.APP_ROOT, "dist-electron");
+const RENDERER_DIST = path$1.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path$1.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+let win;
+function createWindow() {
+  win = new BrowserWindow({
+    icon: path$1.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
     webPreferences: {
-      preload: i.join(y, "preload.mjs")
+      preload: path$1.join(__dirname, "preload.mjs")
     }
-  }), c.webContents.on("did-finish-load", () => {
-    c == null || c.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
-  }), p ? c.loadURL(p) : c.loadFile(i.join(D, "index.html"));
+  });
+  win.webContents.on("did-finish-load", () => {
+    win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
+  });
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
+  } else {
+    win.loadFile(path$1.join(RENDERER_DIST, "index.html"));
+  }
 }
-a.on("window-all-closed", () => {
-  process.platform !== "darwin" && a.quit();
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+  }
 });
-a.on("before-quit", () => {
-  h();
+app.on("before-quit", () => {
+  stopMongoDB();
 });
-a.on("will-quit", () => {
-  h();
+app.on("will-quit", () => {
+  stopMongoDB();
 });
-a.on("quit", () => {
-  h();
+app.on("quit", () => {
+  stopMongoDB();
 });
-a.on("activate", () => {
-  g.getAllWindows().length === 0 && _();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
-a.whenReady().then(async () => {
-  _(), R(), await T();
+app.whenReady().then(async () => {
+  createWindow();
+  startMongoDB();
+  await connectToMongoDB();
 });
 export {
-  q as MAIN_DIST,
-  D as RENDERER_DIST,
-  p as VITE_DEV_SERVER_URL
+  MAIN_DIST,
+  RENDERER_DIST,
+  VITE_DEV_SERVER_URL
 };

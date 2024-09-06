@@ -1,1 +1,28 @@
-"use strict";const r=require("electron");r.contextBridge.exposeInMainWorld("ipcRenderer",{on(...e){const[n,t]=e;return r.ipcRenderer.on(n,(i,...o)=>t(i,...o))},off(...e){const[n,...t]=e;return r.ipcRenderer.off(n,...t)},send(...e){const[n,...t]=e;return r.ipcRenderer.send(n,...t)},invoke(...e){const[n,...t]=e;return r.ipcRenderer.invoke(n,...t)}});r.contextBridge.exposeInMainWorld("mongo",{fetchData:e=>r.ipcRenderer.invoke("fetch-data",e),insertData:(e,n)=>r.ipcRenderer.invoke("insert-data",e,n),deleteData:(e,n)=>r.ipcRenderer.invoke("delete-data",e,n),fetchDatabyId:(e,n)=>r.ipcRenderer.invoke("fetch-databy-id",e,n)});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("ipcRenderer", {
+  on(...args) {
+    const [channel, listener] = args;
+    return electron.ipcRenderer.on(channel, (event, ...args2) => listener(event, ...args2));
+  },
+  off(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.off(channel, ...omit);
+  },
+  send(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.send(channel, ...omit);
+  },
+  invoke(...args) {
+    const [channel, ...omit] = args;
+    return electron.ipcRenderer.invoke(channel, ...omit);
+  }
+  // You can expose other APTs you need here.
+  // ...
+});
+electron.contextBridge.exposeInMainWorld("mongo", {
+  fetchData: (collectionName) => electron.ipcRenderer.invoke("fetch-data", collectionName),
+  insertData: (collectionName, data) => electron.ipcRenderer.invoke("insert-data", collectionName, data),
+  deleteData: (collectionName, data) => electron.ipcRenderer.invoke("delete-data", collectionName, data),
+  fetchDatabyId: (collectionName, id) => electron.ipcRenderer.invoke("fetch-databy-id", collectionName, id)
+});
